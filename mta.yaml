@@ -1,0 +1,94 @@
+_schema-version: "3.1"
+ID: managed_appR
+description: A simple CAP project.
+version: 1.0.0
+modules:
+- name: managed_appR-srv
+  type: nodejs
+  path: gen/srv
+  requires:
+  - name: uaa_managed_appR
+  - name: managed_appR-db
+  provides:
+  - name: srv-api
+    properties:
+      srv-url: ${default-url}
+  parameters:
+    buildpack: nodejs_buildpack
+    readiness-health-check-http-endpoint: /health
+    readiness-health-check-type: http
+  build-parameters:
+    builder: npm
+- name: managed_appR-db-deployer
+  type: hdb
+  path: gen/db
+  requires:
+  - name: managed_appR-db
+  parameters:
+    buildpack: nodejs_buildpack
+- name: managed_appR-destination-content
+  type: com.sap.application.content
+  requires:
+  - name: managed_appR-destination-service
+    parameters:
+      content-target: true
+  - name: managed_appR_html_repo_host
+    parameters:
+      service-key:
+        name: managed_appR_html_repo_host-key
+  - name: uaa_managed_appR
+    parameters:
+      service-key:
+        name: uaa_managed_appR-key
+  parameters:
+    content:
+      instance:
+        destinations:
+        - Name: Managed_managed_appR_html_repo_host
+          ServiceInstanceName: managed_appR-html5-app-host-service
+          ServiceKeyName: managed_appR_html_repo_host-key
+          sap.cloud.service: Managed
+        - Authentication: OAuth2UserTokenExchange
+          Name: Managed_uaa_managed_appR
+          ServiceInstanceName: managed_appR-xsuaa-service
+          ServiceKeyName: uaa_managed_appR-key
+          sap.cloud.service: Managed
+        existing_destinations_policy: ignore
+  build-parameters:
+    no-source: true
+resources:
+- name: managed_appR-db
+  type: com.sap.xs.hdi-container
+  parameters:
+    service: hana
+    service-plan: hdi-shared
+- name: managed_appR-destination-service
+  type: org.cloudfoundry.managed-service
+  parameters:
+    config:
+      HTML5Runtime_enabled: true
+      version: 1.0.0
+    service: destination
+    service-name: managed_appR-destination-service
+    service-plan: lite
+- name: managed_appR_html_repo_host
+  type: org.cloudfoundry.managed-service
+  parameters:
+    service: html5-apps-repo
+    service-name: managed_appR-html5-app-host-service
+    service-plan: app-host
+- name: uaa_managed_appR
+  type: org.cloudfoundry.managed-service
+  parameters:
+    path: ./xs-security.json
+    service: xsuaa
+    service-name: managed_appR-xsuaa-service
+    service-plan: application
+parameters:
+  enable-parallel-deployments: true
+build-parameters:
+  before-all:
+  - builder: custom
+    commands:
+    - npm ci
+    - npx cds build --production
